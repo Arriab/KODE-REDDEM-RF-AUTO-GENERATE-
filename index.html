@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kode Redeem Manager</title>
+<style>
+body {
+    font-family: monospace;
+    background: #f5f5f5;
+    display: flex;
+    justify-content: center;
+    padding: 50px 20px;
+}
+.container {
+    background: #fff;
+    padding: 25px;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 700px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+select, textarea, input, button {
+    padding: 10px;
+    width: 100%;
+    margin: 5px 0;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    font-size: 14px;
+    font-family: monospace;
+}
+textarea {
+    height: 100px;
+    resize: vertical;
+}
+button {
+    cursor: pointer;
+    background: #4CAF50;
+    color: white;
+    border: none;
+}
+button:hover {
+    background: #45a049;
+}
+#stock, #codeList, #output {
+    margin-top: 15px;
+    padding: 15px;
+    background: #eee;
+    border-radius: 5px;
+    white-space: pre;
+    min-height: 50px;
+    font-family: monospace;
+}
+.codeItem {
+    padding: 8px;
+    background: #d9f9d9;
+    margin-bottom: 5px;
+    border-radius: 5px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h2>Kode Redeem Manager</h2>
+<select id="typeSelect">
+<option value="7D">7 Day</option>
+<option value="30D">30 Day</option>
+</select>
+<textarea id="codeInput" placeholder="Masukkan kode redeem, satu kode per baris"></textarea>
+<input type="number" id="quantityInput" placeholder="Quantity saat tambah kode" value="1" min="1">
+<button onclick="addCode()">Tambah Kode</button>
+
+<h3>Ambil Kode:</h3>
+<input type="number" id="redeemQty" placeholder="Berapa kode yang ingin diambil?" value="1" min="1">
+<button onclick="redeemMultiple()">Ambil Kode</button>
+
+<h3>Stok Kode Redeem:</h3>
+<div id="stock"></div>
+
+<h3>Daftar Kode Redeem:</h3>
+<div id="codeList"></div>
+
+<h3>Output:</h3>
+<div id="output"></div>
+</div>
+
+<script>
+let codes = JSON.parse(localStorage.getItem('codes')) || [];
+const stockDiv = document.getElementById('stock');
+const codeListDiv = document.getElementById('codeList');
+const outputDiv = document.getElementById('output');
+
+function updateStock() {
+    let stock7D = codes.filter(c => c.type === '7D').reduce((acc, c) => acc + c.quantity, 0);
+    let stock30D = codes.filter(c => c.type === '30D').reduce((acc, c) => acc + c.quantity, 0);
+    stockDiv.textContent = `7 Day Stock: ${stock7D} | 30 Day Stock: ${stock30D}`;
+}
+
+function displayCodes() {
+    updateStock();
+    codeListDiv.innerHTML = '';
+    codes.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'codeItem';
+        div.textContent = `${item.type}: ${item.code} (Quantity: ${item.quantity})`;
+        codeListDiv.appendChild(div);
+    });
+}
+
+function addCode() {
+    const type = document.getElementById('typeSelect').value;
+    const input = document.getElementById('codeInput').value.trim();
+    const quantity = parseInt(document.getElementById('quantityInput').value) || 1;
+    if(input){
+        const lines = input.split(/\r?\n/);
+        lines.forEach(line => {
+            const code = line.trim();
+            if(code){
+                const existing = codes.find(c => c.code === code && c.type === type);
+                if(existing){
+                    existing.quantity += quantity;
+                } else {
+                    codes.push({type: type, code: code, quantity: quantity});
+                }
+            }
+        });
+        localStorage.setItem('codes', JSON.stringify(codes));
+        document.getElementById('codeInput').value = '';
+        document.getElementById('quantityInput').value = '1';
+        displayCodes();
+    }
+}
+
+function redeemMultiple(){
+    let takeQty = parseInt(document.getElementById('redeemQty').value) || 1;
+    let flatCodes = [];
+    codes.forEach(c => { for(let i=0;i<c.quantity;i++){ flatCodes.push({...c}); }});
+    if(takeQty > flatCodes.length){
+        alert(`Jumlah yang diminta lebih besar dari stok! Stok tersedia: ${flatCodes.length}`);
+        return;
+    }
+
+    let takenCodes = flatCodes.slice(0, takeQty);
+    let firstType = takenCodes[0].type;
+    let unitPrice = firstType === '7D' ? 21000 : 61000;
+    let totalPrice = (unitPrice * takeQty).toLocaleString('id');
+
+    // Format kode sejajar di samping label
+    let codeLines = takenCodes.map(c=>c.code).join('\n               ');
+
+    outputDiv.textContent = `== ORDER CONFIRMATION ==
+Product      : VIP Redeem Code ${firstType} (Redfinger)
+Quantity     : ${takeQty}
+Total Price  : Rp ${totalPrice}
+Redeem Code  : ${codeLines}
+
+Note:
+- Each code can be used for NewCloud and RenewCloud.
+- Each code can be used only once.
+- No refund unless store error.
+
+Thank you for ordering from Arriab Store!`;
+
+    // Kurangi kode yang diambil dari list
+    takenCodes.forEach(tc=>{
+        let idx = codes.findIndex(c=>c.code===tc.code && c.type===tc.type);
+        if(idx>=0){
+            codes[idx].quantity -=1;
+            if(codes[idx].quantity<=0){ codes.splice(idx,1); }
+        }
+    });
+
+    localStorage.setItem('codes', JSON.stringify(codes));
+    displayCodes();
+}
+
+displayCodes();
+</script>
+</body>
+</html>
